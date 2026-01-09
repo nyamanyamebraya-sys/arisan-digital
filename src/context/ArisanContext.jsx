@@ -5,32 +5,74 @@ const ArisanContext = createContext();
 export const useArisan = () => useContext(ArisanContext);
 
 export const ArisanProvider = ({ children }) => {
-  const [members, setMembers] = useState(() => {
-    const saved = localStorage.getItem('arisan_members');
-    return saved ? JSON.parse(saved) : [];
+  // Multi-Group State
+  const [groups, setGroups] = useState(() => {
+    const savedGroups = localStorage.getItem('arisan_groups');
+    if (savedGroups) return JSON.parse(savedGroups);
+    
+    // Migration: If no groups but old data exists, create default group
+    const oldMembers = localStorage.getItem('arisan_members');
+    if (oldMembers) {
+      return [{
+        id: 'default',
+        name: 'Arisan Utama',
+        members: JSON.parse(oldMembers),
+        history: JSON.parse(localStorage.getItem('arisan_history') || '[]'),
+        billAmount: parseInt(localStorage.getItem('arisan_bill_amount') || '100000'),
+        bankDetails: JSON.parse(localStorage.getItem('arisan_bank_details') || '{}'),
+        dueDate: localStorage.getItem('arisan_due_date') || ''
+      }];
+    }
+    
+    // Fresh start
+    return [{
+      id: 'default',
+      name: 'Arisan Utama',
+      members: [],
+      history: [],
+      billAmount: 100000,
+      bankDetails: { bankName: '', accountNumber: '', accountHolder: '' },
+      dueDate: ''
+    }];
   });
 
-  const [history, setHistory] = useState(() => {
-    const saved = localStorage.getItem('arisan_history');
-    return saved ? JSON.parse(saved) : [];
+  const [activeGroupId, setActiveGroupId] = useState(() => {
+    return localStorage.getItem('arisan_active_group_id') || 'default';
   });
 
-  const [billAmount, setBillAmount] = useState(() => {
-    const saved = localStorage.getItem('arisan_bill_amount');
-    return saved ? parseInt(saved) : 100000; // Default 100rb
-  });
+  // Derived state for current group
+  const activeGroup = groups.find(g => g.id === activeGroupId) || groups[0];
 
-  const [bankDetails, setBankDetails] = useState(() => {
-    const saved = localStorage.getItem('arisan_bank_details');
-    return saved ? JSON.parse(saved) : { bankName: '', accountNumber: '', accountHolder: '' };
-  });
+  // Helper to update active group data
+  const updateActiveGroup = (updates) => {
+    setGroups(prev => prev.map(g => 
+      g.id === activeGroupId ? { ...g, ...updates } : g
+    ));
+  };
 
-  const [dueDate, setDueDate] = useState(() => {
-    return localStorage.getItem('arisan_due_date') || '';
-  });
+  // Legacy state wrappers (to keep API compatible)
+  const members = activeGroup.members;
+  const history = activeGroup.history;
+  const billAmount = activeGroup.billAmount;
+  const bankDetails = activeGroup.bankDetails || { bankName: '', accountNumber: '', accountHolder: '' };
+  const dueDate = activeGroup.dueDate || '';
+  const nextArisanDate = activeGroup.nextArisanDate || '';
+  const arisanTime = activeGroup.arisanTime || '';
 
+  // Setters wrappers
+  const setBillAmount = (val) => updateActiveGroup({ billAmount: val });
+  const setBankDetails = (val) => updateActiveGroup({ bankDetails: val });
+  const setDueDate = (val) => updateActiveGroup({ dueDate: val });
+  const setNextArisanDate = (val) => updateActiveGroup({ nextArisanDate: val });
+  const setArisanTime = (val) => updateActiveGroup({ arisanTime: val });
+
+  // Global Settings (Shared across groups)
   const [adminPassword, setAdminPassword] = useState(() => {
     return localStorage.getItem('arisan_admin_password') || 'admin123';
+  });
+
+  const [appLogo, setAppLogo] = useState(() => {
+    return localStorage.getItem('arisan_app_logo') || null;
   });
 
   // Auth State
@@ -38,29 +80,26 @@ export const ArisanProvider = ({ children }) => {
     return localStorage.getItem('arisan_user_role') || null;
   });
 
+  // Persistence
+  useEffect(() => {
+    localStorage.setItem('arisan_groups', JSON.stringify(groups));
+  }, [groups]);
+
+  useEffect(() => {
+    localStorage.setItem('arisan_active_group_id', activeGroupId);
+  }, [activeGroupId]);
+
   useEffect(() => {
     localStorage.setItem('arisan_admin_password', adminPassword);
   }, [adminPassword]);
 
   useEffect(() => {
-    localStorage.setItem('arisan_members', JSON.stringify(members));
-  }, [members]);
-
-  useEffect(() => {
-    localStorage.setItem('arisan_history', JSON.stringify(history));
-  }, [history]);
-
-  useEffect(() => {
-    localStorage.setItem('arisan_bill_amount', billAmount.toString());
-  }, [billAmount]);
-
-  useEffect(() => {
-    localStorage.setItem('arisan_bank_details', JSON.stringify(bankDetails));
-  }, [bankDetails]);
-
-  useEffect(() => {
-    localStorage.setItem('arisan_due_date', dueDate);
-  }, [dueDate]);
+    if (appLogo) {
+      localStorage.setItem('arisan_app_logo', appLogo);
+    } else {
+      localStorage.removeItem('arisan_app_logo');
+    }
+  }, [appLogo]);
 
   useEffect(() => {
     if (userRole) {
@@ -78,31 +117,64 @@ export const ArisanProvider = ({ children }) => {
     setUserRole(null);
   };
 
+  // Group Management Functions
+  const createGroup = (name) => {
+    const newGroup = {
+      id: Date.now().toString(),
+      name,
+      members: [],
+      history: [],
+      billAmount: 100000,
+      bankDetails: { bankName: '', accountNumber: '', accountHolder: '' },
+      dueDate: ''
+    };
+    setGroups(prev => [...prev, newGroup]);
+    setActiveGroupId(newGroup.id);
+  };
+
+  const switchGroup = (id) => {
+    if (groups.find(g => g.id === id)) {
+      setActiveGroupId(id);
+    }
+  };
+
+  const deleteGroup = (id) => {
+    if (groups.length <= 1) return; // Prevent deleting last group
+    const newGroups = groups.filter(g => g.id !== id);
+    setGroups(newGroups);
+    if (activeGroupId === id) {
+      setActiveGroupId(newGroups[0].id);
+    }
+  };
+
+  const updateGroupName = (name) => {
+    updateActiveGroup({ name });
+  };
+
   const addMember = (name, phone = '') => {
     const newMember = {
       id: Date.now().toString(),
       name,
       phone,
       hasWon: false,
-      hasPaid: false, // New field for payment tracking
+      hasPaid: false, 
     };
-    setMembers(prev => [...prev, newMember]);
+    updateActiveGroup({ members: [...members, newMember] });
   };
 
   const updateMember = (id, updates) => {
-    setMembers(prev => prev.map(m => m.id === id ? { ...m, ...updates } : m));
+    updateActiveGroup({ 
+      members: members.map(m => m.id === id ? { ...m, ...updates } : m) 
+    });
   };
 
   const removeMember = (id) => {
-    setMembers(prev => prev.filter(m => m.id !== id));
+    updateActiveGroup({ 
+      members: members.filter(m => m.id !== id) 
+    });
   };
 
   const drawWinner = () => {
-    // We need current members for this logic, so we use the state directly
-    // but the update should be functional to be safe, or we trust 'members' dependency
-    // Since drawWinner depends on random selection from current state, it's better to
-    // keep using 'members' for selection but use functional update for setting state.
-    
     const candidates = members.filter(m => !m.hasWon);
     if (candidates.length === 0) return null;
     
@@ -110,9 +182,9 @@ export const ArisanProvider = ({ children }) => {
     const winner = candidates[randomIndex];
     
     // Update member status
-    setMembers(prev => prev.map(m => 
+    const updatedMembers = members.map(m => 
       m.id === winner.id ? { ...m, hasWon: true } : m
-    ));
+    );
 
     // Add to history
     const winRecord = {
@@ -121,28 +193,51 @@ export const ArisanProvider = ({ children }) => {
       winnerId: winner.id,
       winnerName: winner.name
     };
-    setHistory(prev => [winRecord, ...prev]);
+    
+    updateActiveGroup({
+      members: updatedMembers,
+      history: [winRecord, ...history]
+    });
     
     return winner;
   };
 
   const resetArisan = () => {
-    // Only reset win status, keep payment status or maybe reset both?
-    // Usually a new period means reset payment status too.
-    setMembers(prev => prev.map(m => ({ ...m, hasWon: false, hasPaid: false })));
+    updateActiveGroup({ 
+      members: members.map(m => ({ ...m, hasWon: false, hasPaid: false })) 
+    });
   };
 
   const resetPaymentStatus = () => {
-    setMembers(prev => prev.map(m => ({ ...m, hasPaid: false })));
+    updateActiveGroup({ 
+      members: members.map(m => ({ ...m, hasPaid: false })) 
+    });
   };
 
   const importData = (jsonData) => {
     try {
       const data = JSON.parse(jsonData);
-      if (data.members && data.history) {
-        setMembers(data.members);
-        setHistory(data.history);
-        if (data.billAmount) setBillAmount(data.billAmount);
+      // Support old format import (convert to single group)
+      if (data.members && !data.groups) {
+         updateActiveGroup({
+            members: data.members,
+            history: data.history || [],
+            billAmount: data.billAmount || 100000,
+            bankDetails: data.bankDetails || {},
+             dueDate: data.dueDate || '',
+             nextArisanDate: data.nextArisanDate || '',
+             arisanTime: data.arisanTime || ''
+          });
+          if (data.adminPassword) setAdminPassword(data.adminPassword);
+         if (data.appLogo) setAppLogo(data.appLogo);
+         return true;
+      }
+      // Support new format (all groups)
+      if (data.groups) {
+        setGroups(data.groups);
+        setAdminPassword(data.adminPassword || 'admin123');
+        setAppLogo(data.appLogo || null);
+        setActiveGroupId(data.groups[0].id);
         return true;
       }
       return false;
@@ -153,9 +248,9 @@ export const ArisanProvider = ({ children }) => {
 
   const exportData = () => {
     const data = {
-      members,
-      history,
-      billAmount,
+      groups, // Export all groups
+      adminPassword,
+      appLogo,
       exportedAt: new Date().toISOString()
     };
     return JSON.stringify(data, null, 2);
@@ -163,6 +258,7 @@ export const ArisanProvider = ({ children }) => {
 
   return (
     <ArisanContext.Provider value={{ 
+      // Active Group Data (For compatibility)
       members, 
       history,
       billAmount,
@@ -171,11 +267,21 @@ export const ArisanProvider = ({ children }) => {
       setBankDetails,
       dueDate,
       setDueDate,
+      nextArisanDate,
+      setNextArisanDate,
+      arisanTime,
+      setArisanTime,
+      
+      // Global Settings
       adminPassword,
       setAdminPassword,
+      appLogo,
+      setAppLogo,
       userRole,
       login,
       logout,
+      
+      // Actions
       addMember, 
       updateMember,
       removeMember, 
@@ -183,7 +289,16 @@ export const ArisanProvider = ({ children }) => {
       resetArisan,
       resetPaymentStatus,
       importData,
-      exportData
+      exportData,
+
+      // Multi-Group API
+      groups,
+      activeGroupId,
+      activeGroupName: activeGroup.name,
+      createGroup,
+      switchGroup,
+      deleteGroup,
+      updateGroupName
     }}>
       {children}
     </ArisanContext.Provider>

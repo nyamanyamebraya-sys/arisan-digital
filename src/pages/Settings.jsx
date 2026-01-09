@@ -7,12 +7,22 @@ const Settings = () => {
     billAmount, setBillAmount, 
     bankDetails, setBankDetails, 
     dueDate, setDueDate,
+    nextArisanDate, setNextArisanDate,
+    arisanTime, setArisanTime,
     adminPassword, setAdminPassword,
+    appLogo, setAppLogo,
     resetArisan, resetPaymentStatus,
-    exportData, importData
+    exportData, importData,
+    groups, activeGroupId, createGroup, switchGroup, deleteGroup, updateGroupName
   } = useArisan();
 
   const fileInputRef = useRef(null);
+  const logoInputRef = useRef(null);
+  
+  const [newGroupName, setNewGroupName] = useState('');
+  const [isCreatingGroup, setIsCreatingGroup] = useState(false);
+  const [editingGroupName, setEditingGroupName] = useState(false);
+  const [tempGroupName, setTempGroupName] = useState('');
 
   // Local state for password change
   const [oldPass, setOldPass] = useState('');
@@ -69,20 +79,235 @@ const Settings = () => {
     };
   };
 
+  const handleCreateGroup = (e) => {
+    e.preventDefault();
+    if (newGroupName.trim()) {
+      createGroup(newGroupName);
+      setNewGroupName('');
+      setIsCreatingGroup(false);
+      toast.success('Grup arisan baru berhasil dibuat!');
+    }
+  };
+
+  const handleUpdateGroupName = (e) => {
+    e.preventDefault();
+    if (tempGroupName.trim()) {
+      updateGroupName(tempGroupName);
+      setEditingGroupName(false);
+      toast.success('Nama grup berhasil diubah!');
+    }
+  };
+
+  const handleDeleteGroup = (id, name) => {
+    if (groups.length <= 1) {
+        toast.error('Tidak bisa menghapus satu-satunya grup!');
+        return;
+    }
+    if (window.confirm(`Yakin ingin menghapus grup "${name}"? Semua data di dalamnya akan hilang permanen.`)) {
+        deleteGroup(id);
+        toast.success('Grup berhasil dihapus');
+    }
+  };
+
+  const handleLogoChange = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      if (file.size > 500000) { // Limit 500KB
+        toast.error('Ukuran gambar maksimal 500KB');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setAppLogo(reader.result);
+        toast.success('Logo berhasil diubah!');
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   return (
     <div className="space-y-6 pb-20">
       <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
         <span>⚙️</span> Pengaturan
       </h2>
 
+      {/* Group Management */}
+      <div className="bg-blue-600 text-white p-4 rounded-xl shadow-lg">
+        <div className="flex justify-between items-center mb-4 border-b border-blue-500 pb-2">
+            <h3 className="font-bold flex items-center gap-2">
+                <span>📂</span> Kelola Grup Arisan
+            </h3>
+            <button 
+                onClick={() => setIsCreatingGroup(!isCreatingGroup)}
+                className="text-xs bg-white text-blue-600 px-3 py-1 rounded-full font-bold hover:bg-blue-50 transition"
+            >
+                {isCreatingGroup ? 'Batal' : '+ Buat Baru'}
+            </button>
+        </div>
+
+        {isCreatingGroup && (
+            <form onSubmit={handleCreateGroup} className="mb-4 bg-blue-700 p-3 rounded-lg animate-fade-in">
+                <label className="text-xs text-blue-200 block mb-1">Nama Grup Baru</label>
+                <div className="flex gap-2">
+                    <input 
+                        type="text" 
+                        value={newGroupName}
+                        onChange={(e) => setNewGroupName(e.target.value)}
+                        placeholder="Misal: Arisan Kantor"
+                        className="flex-1 text-gray-800 rounded px-3 py-1 text-sm focus:outline-none"
+                        autoFocus
+                    />
+                    <button type="submit" className="bg-green-500 hover:bg-green-600 px-3 py-1 rounded text-sm font-bold">
+                        Simpan
+                    </button>
+                </div>
+            </form>
+        )}
+
+        <div className="space-y-2 max-h-60 overflow-y-auto pr-1 custom-scrollbar">
+            {groups.map(group => (
+                <div 
+                    key={group.id} 
+                    className={`flex justify-between items-center p-3 rounded-lg border ${activeGroupId === group.id ? 'bg-white text-blue-700 border-white' : 'bg-blue-700 text-blue-100 border-blue-600 hover:bg-blue-500'}`}
+                >
+                    <div className="flex-1 cursor-pointer" onClick={() => switchGroup(group.id)}>
+                        <div className="flex items-center gap-2">
+                            {activeGroupId === group.id && <span>✅</span>}
+                            <span className="font-bold text-sm truncate">{group.name}</span>
+                        </div>
+                        <div className="text-xs opacity-75 ml-6">
+                            {group.members.length} Peserta
+                        </div>
+                    </div>
+                    
+                    {activeGroupId === group.id && (
+                        <div className="flex gap-1 ml-2">
+                            <button 
+                                onClick={() => {
+                                    setTempGroupName(group.name);
+                                    setEditingGroupName(true);
+                                }}
+                                className="p-1 hover:bg-blue-50 rounded text-blue-600"
+                                title="Ubah Nama"
+                            >
+                                ✏️
+                            </button>
+                        </div>
+                    )}
+                    
+                    {groups.length > 1 && activeGroupId !== group.id && (
+                         <button 
+                            onClick={() => handleDeleteGroup(group.id, group.name)}
+                            className="p-1 hover:bg-red-500 hover:text-white rounded text-red-300 transition"
+                            title="Hapus Grup"
+                        >
+                            🗑️
+                        </button>
+                    )}
+                </div>
+            ))}
+        </div>
+
+        {editingGroupName && (
+             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                <form onSubmit={handleUpdateGroupName} className="bg-white p-4 rounded-lg shadow-xl w-full max-w-xs text-gray-800">
+                    <h4 className="font-bold mb-2">Ubah Nama Grup</h4>
+                    <input 
+                        type="text" 
+                        value={tempGroupName}
+                        onChange={(e) => setTempGroupName(e.target.value)}
+                        className="w-full border p-2 rounded mb-3 focus:outline-blue-500"
+                    />
+                    <div className="flex justify-end gap-2">
+                        <button 
+                            type="button" 
+                            onClick={() => setEditingGroupName(false)}
+                            className="px-3 py-1 text-gray-500 hover:bg-gray-100 rounded"
+                        >
+                            Batal
+                        </button>
+                        <button type="submit" className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">
+                            Simpan
+                        </button>
+                    </div>
+                </form>
+             </div>
+        )}
+      </div>
+
+      {/* Logo Settings */}
+      <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+        <h3 className="font-bold text-gray-700 mb-4 flex items-center gap-2 border-b pb-2">
+          <span>🖼️</span> Logo Aplikasi
+        </h3>
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-24 h-24 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden bg-gray-50 relative">
+             {appLogo ? (
+                <img src={appLogo} alt="Logo" className="w-full h-full object-cover" />
+             ) : (
+                <span className="text-4xl">🎰</span>
+             )}
+          </div>
+          <div className="flex gap-2 w-full">
+            <button 
+                onClick={() => logoInputRef.current.click()}
+                className="flex-1 bg-blue-50 text-blue-600 py-2 rounded-lg text-sm font-medium hover:bg-blue-100 transition border border-blue-100"
+            >
+                Upload Logo
+            </button>
+            {appLogo && (
+                <button 
+                    onClick={() => {
+                        setAppLogo(null);
+                        toast.success('Logo direset ke default');
+                    }}
+                    className="bg-red-50 text-red-600 px-4 rounded-lg text-sm font-medium hover:bg-red-100 transition border border-red-100"
+                >
+                    Hapus
+                </button>
+            )}
+          </div>
+          <input 
+            type="file" 
+            ref={logoInputRef}
+            onChange={handleLogoChange}
+            accept="image/*"
+            className="hidden"
+          />
+          <p className="text-xs text-gray-400 text-center">
+            Format: JPG/PNG. Maksimal 500KB.
+          </p>
+        </div>
+      </div>
+
       {/* Info Arisan */}
       <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
         <h3 className="font-bold text-gray-700 mb-4 flex items-center gap-2 border-b pb-2">
-          <span>📅</span> Info & Keuangan
+          <span>📅</span> Info & Jadwal Arisan
         </h3>
         <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Jadwal Kocok</label>
+                <input 
+                  type="date" 
+                  value={nextArisanDate}
+                  onChange={(e) => setNextArisanDate(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Jam</label>
+                <input 
+                  type="time" 
+                  value={arisanTime}
+                  onChange={(e) => setArisanTime(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+          </div>
           <div>
-            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Tanggal Jatuh Tempo</label>
+            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Batas Pembayaran</label>
             <input 
               type="text" 
               value={dueDate}

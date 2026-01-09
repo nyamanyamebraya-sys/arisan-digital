@@ -3,9 +3,12 @@ import { useArisan } from '../context/ArisanContext';
 import toast from 'react-hot-toast';
 
 const Dashboard = () => {
-  const { members, history, billAmount, exportData, importData, resetPaymentStatus, userRole, bankDetails, dueDate } = useArisan();
+  const { 
+    members, history, billAmount, 
+    bankDetails, dueDate, nextArisanDate, arisanTime 
+  } = useArisan();
   
-  const isAdmin = userRole === 'admin';
+  const isAdmin = false; // Not used here directly as role is handled in App.jsx but good for future
   const totalMembers = members.length;
   
   const hasWonCount = members.filter(m => m.hasWon).length;
@@ -13,10 +16,17 @@ const Dashboard = () => {
   
   const paidCount = members.filter(m => m.hasPaid).length;
   const totalCollected = paidCount * billAmount;
+  const totalPot = totalMembers * billAmount;
   const progressPercent = totalMembers > 0 ? (paidCount / totalMembers) * 100 : 0;
 
   const formatRupiah = (number) => {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(number);
+  };
+  
+  const formatDate = (dateString) => {
+      if (!dateString) return '-';
+      const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+      return new Date(dateString).toLocaleDateString('id-ID', options);
   };
 
   return (
@@ -27,6 +37,26 @@ const Dashboard = () => {
              <h2 className="text-xl font-bold text-gray-800">Dashboard</h2>
              {dueDate && <p className="text-xs text-red-500 font-medium">Jatuh Tempo: {dueDate}</p>}
          </div>
+      </div>
+
+      {/* Next Schedule Card */}
+      <div className="bg-gradient-to-r from-purple-600 to-indigo-600 p-4 rounded-lg shadow-md text-white flex justify-between items-center">
+        <div>
+            <p className="text-xs font-bold text-purple-200 uppercase tracking-wider mb-1">Jadwal Kocok Berikutnya</p>
+            <h3 className="text-lg font-bold">{nextArisanDate ? formatDate(nextArisanDate) : 'Belum Dijadwalkan'}</h3>
+            {arisanTime && <p className="text-sm text-purple-100">Pukul {arisanTime} WIB</p>}
+        </div>
+        <div className="text-3xl bg-white bg-opacity-20 p-2 rounded-lg">🗓️</div>
+      </div>
+      
+      {/* Total Pot Card */}
+      <div className="bg-white p-4 rounded-lg shadow-sm border-l-4 border-green-500 flex justify-between items-center">
+          <div>
+              <p className="text-xs text-gray-500 uppercase font-bold tracking-wider">Total Dapat (Pot)</p>
+              <p className="font-bold text-gray-800 text-2xl">{formatRupiah(totalPot)}</p>
+              <p className="text-xs text-gray-400">Estimasi jika semua bayar</p>
+          </div>
+          <div className="text-2xl text-green-500 bg-green-50 p-2 rounded-full">💰</div>
       </div>
 
       {/* Bank Info Card (If Exists) */}

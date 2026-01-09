@@ -9,7 +9,7 @@ import Login from './pages/Login';
 import Settings from './pages/Settings';
 
 function AppContent() {
-  const { userRole, logout } = useArisan();
+  const { userRole, logout, appLogo, activeGroupName } = useArisan();
   const [activeTab, setActiveTab] = useState('dashboard');
 
   if (!userRole) {
@@ -31,7 +31,13 @@ function AppContent() {
     <div className="min-h-screen bg-gray-100 flex flex-col font-sans">
       {/* Header */}
       <header className="bg-blue-600 text-white p-4 shadow-md sticky top-0 z-10 flex justify-between items-center">
-        <h1 className="text-xl font-bold tracking-wide">Arisan Digital</h1>
+        <div className="flex items-center gap-2">
+            {appLogo && <img src={appLogo} alt="Logo" className="w-8 h-8 rounded-full bg-white object-cover" />}
+            <div>
+                <h1 className="text-lg font-bold tracking-wide leading-tight">Arisan Digital</h1>
+                <p className="text-xs text-blue-100 font-medium">{activeGroupName}</p>
+            </div>
+        </div>
         <div className="flex items-center gap-2">
             <span className="text-xs bg-blue-700 px-2 py-1 rounded">
                 {userRole === 'admin' ? '🛡️ Admin' : '👤 Peserta'}

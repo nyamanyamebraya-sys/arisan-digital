@@ -3,7 +3,7 @@ import { useArisan } from '../context/ArisanContext';
 import toast from 'react-hot-toast';
 
 const Login = () => {
-  const { login, adminPassword } = useArisan();
+  const { login, adminPassword, appLogo } = useArisan();
   const [password, setPassword] = useState('');
   const [isAdminMode, setIsAdminMode] = useState(false);
 
@@ -25,7 +25,11 @@ const Login = () => {
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4 font-sans">
       <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm text-center">
-        <div className="text-5xl mb-4">🎰</div>
+        {appLogo ? (
+            <img src={appLogo} alt="Logo Arisan" className="w-24 h-24 mx-auto mb-4 rounded-full object-cover border-4 border-blue-50" />
+        ) : (
+            <div className="text-5xl mb-4">🎰</div>
+        )}
         <h1 className="text-2xl font-bold text-gray-800 mb-2">Arisan Digital</h1>
         <p className="text-gray-500 mb-8 text-sm">Kelola arisan dengan mudah dan transparan.</p>
 
